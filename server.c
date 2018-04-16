@@ -6,10 +6,14 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#define BUFFER_SIZE 2048
+
 int main(int argc, char *argv[]) {
     int sockfd, newsockfd, portno;
     struct sockaddr_in serv_addr, cli_addr;
     char *root_dir;
+    FILE *fileptr;
+    char request_buffer[BUFFER_SIZE];
     socklen_t clilen;
 
     if (argc < 3) {
@@ -26,7 +30,7 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    memset((char *)&serv_addr, 0, sizeof(serv_addr));
+    memset((char *)&serv_addr, '0', sizeof(serv_addr));
 
     portno = atoi(argv[1]);
 
@@ -50,7 +54,7 @@ int main(int argc, char *argv[]) {
     /* Listen on socket - means we're ready to accept connections -
      incoming connection requests will be queued */
 
-    listen(sockfd, 5);
+    listen(sockfd, 10);
 
     clilen = sizeof(cli_addr);
 
@@ -64,5 +68,20 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
+    memset(request_buffer, '0', BUFFER_SIZE);
+
+    read(newsockfd, request_buffer, BUFFER_SIZE);
+
+    char file_path[BUFFER_SIZE];
+    int i;
+    for (i = 4; request_buffer[i] != ' '; i++) {
+        file_path[i - 4] = request_buffer[i];
+    }
+
+    printf("%s%s\n", root_dir, file_path);
+
+    /* close socket */
+
+    close(sockfd);
     return 0;
 }
