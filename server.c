@@ -8,11 +8,12 @@
 
 #define BUFFER_SIZE 2048
 
+int readFile(char **, char *);
+
 int main(int argc, char *argv[]) {
     int sockfd, newsockfd, portno;
     struct sockaddr_in serv_addr, cli_addr;
     char *root_dir;
-    FILE *fileptr;
     char request_buffer[BUFFER_SIZE];
     socklen_t clilen;
 
@@ -84,4 +85,19 @@ int main(int argc, char *argv[]) {
 
     close(sockfd);
     return 0;
+}
+
+int readFile(char **output, char *path) {
+    FILE *file_ptr;
+    long file_len;
+
+    file_ptr = fopen(path, "rb");
+    fseek(file_ptr, 0, SEEK_END);
+    file_len = ftell(file_ptr);
+    rewind(file_ptr);
+
+    *output = (char *)malloc((file_len + 1) * sizeof(char));
+    fread(*output, file_len, 1, file_ptr);
+    fclose(file_ptr);
+    return file_len;
 }
