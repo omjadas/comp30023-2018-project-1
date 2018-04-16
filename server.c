@@ -8,7 +8,7 @@
 
 #define BUFFER_SIZE 2048
 
-int readFile(char **, char *);
+int read_file(char **, char *);
 
 int main(int argc, char *argv[]) {
     int sockfd, newsockfd, portno;
@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-int readFile(char **output, char *path) {
+int read_file(char **output, char *path) {
     FILE *file_ptr;
     long file_len;
 
