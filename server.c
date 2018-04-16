@@ -2,11 +2,14 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
-int main(int argc, char const *argv[]) {
+int main(int argc, char *argv[]) {
     int sockfd, newsockfd, portno;
     struct sockaddr_in serv_addr, cli_addr;
+    char *root_dir;
     socklen_t clilen;
 
     if (argc < 3) {
@@ -23,9 +26,11 @@ int main(int argc, char const *argv[]) {
         exit(1);
     }
 
-    bzero((char *)&serv_addr, sizeof(serv_addr));
+    memset((char *)&serv_addr, 0, sizeof(serv_addr));
 
     portno = atoi(argv[1]);
+
+    root_dir = argv[2];
 
     /* Create address we're going to listen on (given port number)
      - converted to network byte order & any IP address for
