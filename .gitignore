@@ -1,2 +1,5 @@
 .vscode
 server
+test
+test_script.sh
+test_log.txt
