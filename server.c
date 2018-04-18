@@ -170,23 +170,6 @@ void send_file(char *path, int newsockfd) {
     }
 }
 
-int read_file(char **output, char *path) {
-    FILE *file_ptr;
-    long file_len;
-
-    if (file_ptr = fopen(path, "rb")) {
-        fseek(file_ptr, 0, SEEK_END);
-        file_len = ftell(file_ptr);
-        rewind(file_ptr);
-
-        *output = (char *)malloc((file_len + 1) * sizeof(char));
-        fread(*output, file_len, 1, file_ptr);
-        fclose(file_ptr);
-        return file_len;
-    }
-    return -1;
-}
-
 char *get_dir(char *request) {
     char *path = malloc(BUFFER_SIZE * sizeof(char));
     int i;
