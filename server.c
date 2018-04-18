@@ -96,6 +96,7 @@ int main(int argc, char *argv[]) {
 }
 
 void *worker(void *arguments) {
+    int n;
     char request_buffer[BUFFER_SIZE];
     struct arg_struct *args = arguments;
 
@@ -104,7 +105,12 @@ void *worker(void *arguments) {
 
     memset(request_buffer, '0', sizeof(request_buffer));
 
-    read(newsockfd, request_buffer, sizeof(request_buffer));
+    n = read(newsockfd, request_buffer, sizeof(request_buffer));
+
+    if (n < 0) {
+        perror("ERROR reading from socket");
+        exit(1);
+    }
 
     char *file_path = get_dir(request_buffer);
 
@@ -121,11 +127,19 @@ void *worker(void *arguments) {
         header[0] = '\0';
         strcat(header, "HTTP/1.0 200 OK\r\n");
         strcat(header, mime_type(full_path));
-        write(newsockfd, header, strlen(header));
+        n = write(newsockfd, header, strlen(header));
+        if (n < 0) {
+            perror("ERROR writing to socket");
+            exit(1);
+        }
         send_file(full_path, newsockfd);
     } else {
         printf("404 Not Found\n");
-        write(newsockfd, "HTTP/1.0 404 Not Found\r\n", 25);
+        n = write(newsockfd, "HTTP/1.0 404 Not Found\r\n", 25);
+        if (n < 0) {
+            perror("ERROR writing to socket");
+            exit(1);
+        }
     }
 
     close(newsockfd);
@@ -146,6 +160,10 @@ void send_file(char *path, int newsockfd) {
         void *p = buffer;
         while (bytes_read > 0) {
             int written = write(newsockfd, p, bytes_read);
+            if (written < 0) {
+                perror("ERROR writing to socket");
+                exit(1);
+            }
             bytes_read -= written;
             p += written;
         }
