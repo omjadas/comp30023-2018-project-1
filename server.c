@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -11,13 +12,18 @@
 int read_file(char **, char *);
 char *get_dir(char *);
 const char *mime_type(char *);
-void send_file(char *, int, int);
+void *worker(void *);
+void send_file(char *, int);
+
+struct arg_struct {
+    int newsockfd;
+    char *root_dir;
+};
 
 int main(int argc, char *argv[]) {
     int sockfd, newsockfd, portno;
     struct sockaddr_in serv_addr, cli_addr;
     char *root_dir;
-    char request_buffer[BUFFER_SIZE];
 
     socklen_t clilen;
 
@@ -59,6 +65,8 @@ int main(int argc, char *argv[]) {
     clilen = sizeof(cli_addr);
 
     while (1) {
+        pthread_t tid;
+
         /* Listen on socket - means we're ready to accept connections -
          incoming connection requests will be queued */
 
@@ -74,41 +82,11 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
 
-        memset(request_buffer, '0', BUFFER_SIZE);
+        struct arg_struct args;
+        args.newsockfd = newsockfd;
+        args.root_dir = root_dir;
 
-        read(newsockfd, request_buffer, BUFFER_SIZE);
-
-        // printf("%s\n", request_buffer);
-
-        char *file_path = get_dir(request_buffer);
-
-        char full_path[BUFFER_SIZE * 2];
-
-        strcpy(full_path, root_dir);
-        strcat(full_path, file_path);
-
-        char *file;
-        int file_len;
-
-        file_len = read_file(&file, full_path);
-
-        if (file_len >= 0) {
-            printf("200 OK\n");
-            char header[BUFFER_SIZE * 4];
-            strcat(header, "HTTP/1.0 200 OK\r\n");
-            strcat(header, mime_type(full_path));
-            write(newsockfd, header, strlen(header));
-            write(newsockfd, file, file_len);
-            printf("%s", header);
-            header[0] = '\0';
-            free(file);
-        } else {
-            printf("404 Not Found\n");
-            write(newsockfd, "HTTP/1.0 404 Not Found\r\n", 25);
-        }
-
-        close(newsockfd);
-        free(file_path);
+        pthread_create(&tid, NULL, worker, (void *)&args);
     }
 
     /* close socket */
@@ -117,11 +95,66 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
+void *worker(void *arguments) {
+    char request_buffer[BUFFER_SIZE];
+    struct arg_struct *args = arguments;
+
+    int newsockfd = args->newsockfd;
+    char *root_dir = args->root_dir;
+
+    memset(request_buffer, '0', sizeof(request_buffer));
+
+    read(newsockfd, request_buffer, sizeof(request_buffer));
+
+    char *file_path = get_dir(request_buffer);
+
+    char full_path[BUFFER_SIZE * 2];
+
+    strcpy(full_path, root_dir);
+    strcat(full_path, file_path);
+
+    free(file_path);
+
+    if (access(full_path, F_OK) != -1) {
+        printf("200 OK\n");
+        char header[BUFFER_SIZE * 4];
+        header[0] = '\0';
+        strcat(header, "HTTP/1.0 200 OK\r\n");
+        strcat(header, mime_type(full_path));
+        write(newsockfd, header, strlen(header));
+        send_file(full_path, newsockfd);
+    } else {
+        printf("404 Not Found\n");
+        write(newsockfd, "HTTP/1.0 404 Not Found\r\n", 25);
+    }
+
+    close(newsockfd);
+
+    return NULL;
+}
+
+void send_file(char *path, int newsockfd) {
+    char buffer[BUFFER_SIZE];
+    int file = open((const char *)path, O_RDONLY);
+    while (1) {
+        int bytes_read = read(file, buffer, sizeof(buffer));
+
+        if (bytes_read == 0) {
+            break;
+        }
+
+        void *p = buffer;
+        while (bytes_read > 0) {
+            int written = write(newsockfd, p, bytes_read);
+            bytes_read -= written;
+            p += written;
+        }
+    }
+}
+
 int read_file(char **output, char *path) {
     FILE *file_ptr;
     long file_len;
-
-    // printf("%s\n", path);
 
     if (file_ptr = fopen(path, "rb")) {
         fseek(file_ptr, 0, SEEK_END);
@@ -137,9 +170,6 @@ int read_file(char **output, char *path) {
 }
 
 char *get_dir(char *request) {
-
-    // printf("\n%s\n", request);
-
     char *path = malloc(BUFFER_SIZE * sizeof(char));
     int i;
     for (i = 4; request[i] != ' '; i++) {
@@ -153,7 +183,6 @@ const char *mime_type(char *path) {
     char *dot = strrchr(path, '.');
     dot++;
 
-    printf("%s", dot);
     if (strcmp(dot, "html") == 0) {
         return "Content-Type: text/html\r\n\r\n";
     } else if (strcmp(dot, "jpg") == 0) {
@@ -164,7 +193,4 @@ const char *mime_type(char *path) {
         return "Content-Type: application/javascript\r\n\r\n";
     }
     return 0;
-}
-
-void send_file(char *file, int file_len, int sockfd) {
 }
