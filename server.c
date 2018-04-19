@@ -193,5 +193,5 @@ const char *mime_type(char *path) {
     } else if (strcmp(dot, "js") == 0) {
         return "Content-Type: application/javascript\r\n\r\n";
     }
-    return 0;
+    return "\r\n";
 }
