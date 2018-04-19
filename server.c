@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #define BUFFER_SIZE 2048 /** The size of the file buffer */
+#define NUM_PARAMS 3
 
 /** Function prototypes */
 int read_file(char **, char *);
@@ -27,25 +28,15 @@ int main(int argc, char *argv[]) {
     struct sockaddr_in serv_addr, cli_addr;
     char *root_dir;
     socklen_t clilen;
-    
+
     /** Test whether all command line arguments were provided */
-    if (argc < 3) {
+    if (argc < NUM_PARAMS) {
         fprintf(stderr, "ERROR, missing arguments\n");
         exit(1);
     }
 
-    /** Create TCP socket */
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-
-    if (sockfd < 0) {
-        perror("ERROR opening socket");
-        exit(1);
-    }
-
-    memset((char *)&serv_addr, '0', sizeof(serv_addr));
-
+    /** Read values from command line arguments */
     portno = atoi(argv[1]);
-
     root_dir = argv[2];
 
     /**
@@ -53,9 +44,16 @@ int main(int argc, char *argv[]) {
      * converted to network byte order & any IP address for
      * this machine
      */
+    memset((char *)&serv_addr, '0', sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    serv_addr.sin_port = htons(portno); // store in machine-neutral format
+    serv_addr.sin_port = htons(portno); /** store in machine-neutral format */
+
+    /** Create TCP socket and check for errors while opening */
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        perror("ERROR opening socket");
+        exit(1);
+    }
 
     /** Bind address to the socket */
     if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
@@ -65,7 +63,7 @@ int main(int argc, char *argv[]) {
 
     clilen = sizeof(cli_addr);
 
-    /**  */
+    /** Loop */
     while (1) {
         pthread_t tid;
 
@@ -79,9 +77,8 @@ int main(int argc, char *argv[]) {
          * Accept a connection - block until a connection is ready to
          * be accepted. Get back a new file descriptor to communicate on.
          */
-        newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
-
-        if (newsockfd < 0) {
+        if ((newsockfd =
+                 accept(sockfd, (struct sockaddr *)&cli_addr, &clilen)) < 0) {
             perror("ERROR on accept");
             exit(1);
         }
@@ -101,8 +98,8 @@ int main(int argc, char *argv[]) {
 /**
  * Function: worker
  * ----------------
- * 
- * 
+ *
+ *
  * @param arguments Struct containing relevant arguments
  */
 void *worker(void *arguments) {
@@ -110,50 +107,52 @@ void *worker(void *arguments) {
     char request_buffer[BUFFER_SIZE];
     struct arg_struct *args = arguments;
 
+    /** Read values from arguments */
     int newsockfd = args->newsockfd;
     char *root_dir = args->root_dir;
 
     memset(request_buffer, '0', sizeof(request_buffer));
 
-    n = read(newsockfd, request_buffer, sizeof(request_buffer) - 1);
-
-    if (n < 0) {
+    /** Reads request from socket */
+    if ((n = read(newsockfd, request_buffer, sizeof(request_buffer) - 1)) < 0) {
         perror("ERROR reading from socket");
         exit(1);
     }
 
+    /** Gets the full path of the requested file */
     char *file_path = get_dir(request_buffer);
-
     char full_path[BUFFER_SIZE * 2];
-
     strcpy(full_path, root_dir);
     strcat(full_path, file_path);
-
     free(file_path);
 
+    /** If file exists "200 OK", MIME type, and file are sent, otherwise
+     * "404 Not Found" is sent.
+     */
     if (access(full_path, F_OK) != -1) {
         printf("200 OK\n");
-        char header[BUFFER_SIZE * 4];
+        char header[BUFFER_SIZE];
         header[0] = '\0';
         strcat(header, "HTTP/1.0 200 OK\r\n");
         strcat(header, mime_type(full_path));
-        n = write(newsockfd, header, strlen(header));
-        if (n < 0) {
+
+        /** Writes header to socket */
+        if ((n = write(newsockfd, header, strlen(header))) < 0) {
             perror("ERROR writing to socket");
             exit(1);
         }
         send_file(full_path, newsockfd);
     } else {
         printf("404 Not Found\n");
-        n = write(newsockfd, "HTTP/1.0 404 Not Found\r\n", 25);
-        if (n < 0) {
+
+        /** Write 404 to socket */
+        if ((n = write(newsockfd, "HTTP/1.0 404 Not Found\r\n", 25)) < 0) {
             perror("ERROR writing to socket");
             exit(1);
         }
     }
 
     close(newsockfd);
-
     return NULL;
 }
 
@@ -161,9 +160,9 @@ void *worker(void *arguments) {
  * Function: send_file
  * -------------------
  * Sends the file located at path to the socket newsockfd.
- * 
+ *
  * @param path      A string containing the path of the file to be sent
- * @param newsockfd The socket that the file is being sent over
+ * @param newsockfd The socket that the file is being sent to
  */
 void send_file(char *path, int newsockfd) {
     char buffer[BUFFER_SIZE];
@@ -171,6 +170,7 @@ void send_file(char *path, int newsockfd) {
     while (1) {
         int bytes_read = read(file, buffer, sizeof(buffer));
 
+        /** Check if file has finished sending */
         if (bytes_read == 0) {
             break;
         }
@@ -192,7 +192,7 @@ void send_file(char *path, int newsockfd) {
  * Function: get_dir
  * -----------------
  * Parses the relative path of the requested file from the HTTP request.
- * 
+ *
  * @param request   HTTP request
  * @return          The relative path of the requested file
  */
@@ -210,7 +210,7 @@ char *get_dir(char *request) {
  * Function: mime_type
  * -------------------
  * Returns the relevant Content-Type header for .html,.jpg, .css, and .js files.
- * 
+ *
  * @param path  The path of the file being requested
  * @return      Content-Type header or newline if not recognised
  */
