@@ -8,7 +8,7 @@
 #include <unistd.h>
 
 #define BUFFER_SIZE 2048 /** The size of the file buffer */
-#define NUM_PARAMS 3
+#define NUM_PARAMS 3     /** Expected number of command line arguments */
 
 /** Function prototypes */
 int read_file(char **, char *);
@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
         pthread_create(&tid, NULL, worker, (void *)&args);
     }
 
-    /** close socket */
+    /** Close socket */
     close(sockfd);
     return 0;
 }
@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
 /**
  * Function: worker
  * ----------------
- *
+ * Reads and appropriately responds to a HTTP request.
  *
  * @param arguments Struct containing relevant arguments
  */
@@ -152,7 +152,9 @@ void *worker(void *arguments) {
         }
     }
 
+    /** Close connection */
     close(newsockfd);
+
     return NULL;
 }
 
