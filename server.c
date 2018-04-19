@@ -7,14 +7,16 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define BUFFER_SIZE 2048
+#define BUFFER_SIZE 2048 /** The size of the file buffer */
 
+/** Function prototypes */
 int read_file(char **, char *);
 char *get_dir(char *);
 const char *mime_type(char *);
 void *worker(void *);
 void send_file(char *, int);
 
+/** Struct that contains relevant arguments for the worker function */
 struct arg_struct {
     int newsockfd;
     char *root_dir;
@@ -24,16 +26,15 @@ int main(int argc, char *argv[]) {
     int sockfd, newsockfd, portno;
     struct sockaddr_in serv_addr, cli_addr;
     char *root_dir;
-
     socklen_t clilen;
-
+    
+    /** Test whether all command line arguments were provided */
     if (argc < 3) {
-        fprintf(stderr, "ERROR, no port provided\n");
+        fprintf(stderr, "ERROR, missing arguments\n");
         exit(1);
     }
 
-    /* Create TCP socket */
-
+    /** Create TCP socket */
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (sockfd < 0) {
@@ -47,16 +48,16 @@ int main(int argc, char *argv[]) {
 
     root_dir = argv[2];
 
-    /* Create address we're going to listen on (given port number)
-     - converted to network byte order & any IP address for
-     this machine */
-
+    /**
+     * Create address we're going to listen on (given port number)
+     * converted to network byte order & any IP address for
+     * this machine
+     */
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     serv_addr.sin_port = htons(portno); // store in machine-neutral format
 
-    /* Bind address to the socket */
-
+    /** Bind address to the socket */
     if (bind(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
         perror("ERROR on binding");
         exit(1);
@@ -64,17 +65,20 @@ int main(int argc, char *argv[]) {
 
     clilen = sizeof(cli_addr);
 
+    /**  */
     while (1) {
         pthread_t tid;
 
-        /* Listen on socket - means we're ready to accept connections -
-         incoming connection requests will be queued */
-
+        /*
+         * Listen on socket - means we're ready to accept connections -
+         * incoming connection requests will be queued
+         */
         listen(sockfd, 1);
 
-        /* Accept a connection - block until a connection is ready to
-         be accepted. Get back a new file descriptor to communicate on. */
-
+        /*
+         * Accept a connection - block until a connection is ready to
+         * be accepted. Get back a new file descriptor to communicate on.
+         */
         newsockfd = accept(sockfd, (struct sockaddr *)&cli_addr, &clilen);
 
         if (newsockfd < 0) {
@@ -82,19 +86,25 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
 
+        /** Create a worker thread */
         struct arg_struct args;
         args.newsockfd = newsockfd;
         args.root_dir = root_dir;
-
         pthread_create(&tid, NULL, worker, (void *)&args);
     }
 
-    /* close socket */
-
+    /** close socket */
     close(sockfd);
     return 0;
 }
 
+/**
+ * Function: worker
+ * ----------------
+ * 
+ * 
+ * @param arguments Struct containing relevant arguments
+ */
 void *worker(void *arguments) {
     int n;
     char request_buffer[BUFFER_SIZE];
@@ -105,7 +115,7 @@ void *worker(void *arguments) {
 
     memset(request_buffer, '0', sizeof(request_buffer));
 
-    n = read(newsockfd, request_buffer, sizeof(request_buffer));
+    n = read(newsockfd, request_buffer, sizeof(request_buffer) - 1);
 
     if (n < 0) {
         perror("ERROR reading from socket");
@@ -147,9 +157,17 @@ void *worker(void *arguments) {
     return NULL;
 }
 
+/**
+ * Function: send_file
+ * -------------------
+ * Sends the file located at path to the socket newsockfd.
+ * 
+ * @param path      A string containing the path of the file to be sent
+ * @param newsockfd The socket that the file is being sent over
+ */
 void send_file(char *path, int newsockfd) {
     char buffer[BUFFER_SIZE];
-    int file = open((const char *)path, O_RDONLY);
+    int file = open(path, O_RDONLY);
     while (1) {
         int bytes_read = read(file, buffer, sizeof(buffer));
 
@@ -170,6 +188,14 @@ void send_file(char *path, int newsockfd) {
     }
 }
 
+/**
+ * Function: get_dir
+ * -----------------
+ * Parses the relative path of the requested file from the HTTP request.
+ * 
+ * @param request   HTTP request
+ * @return          The relative path of the requested file
+ */
 char *get_dir(char *request) {
     char *path = malloc(BUFFER_SIZE * sizeof(char));
     int i;
@@ -180,6 +206,14 @@ char *get_dir(char *request) {
     return path;
 }
 
+/**
+ * Function: mime_type
+ * -------------------
+ * Returns the relevant Content-Type header for .html,.jpg, .css, and .js files.
+ * 
+ * @param path  The path of the file being requested
+ * @return      Content-Type header or newline if not recognised
+ */
 const char *mime_type(char *path) {
     char *dot = strrchr(path, '.');
     dot++;
