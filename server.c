@@ -67,13 +67,13 @@ int main(int argc, char *argv[]) {
     while (1) {
         pthread_t tid;
 
-        /*
+        /**
          * Listen on socket - means we're ready to accept connections -
          * incoming connection requests will be queued
          */
         listen(sockfd, 1);
 
-        /*
+        /**
          * Accept a connection - block until a connection is ready to
          * be accepted. Get back a new file descriptor to communicate on.
          */
@@ -126,7 +126,8 @@ void *worker(void *arguments) {
     strcat(full_path, file_path);
     free(file_path);
 
-    /** If file exists "200 OK", MIME type, and file are sent, otherwise
+    /** 
+     * If file exists "200 OK", MIME type, and file are sent, otherwise
      * "404 Not Found" is sent.
      */
     if (access(full_path, F_OK) != -1) {
